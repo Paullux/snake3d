@@ -7,7 +7,7 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: #0a1a0a;
+      background: #9dc870 url('img/bg-game.jpg') center/cover no-repeat;
       overflow: hidden;
       font-family: 'Segoe UI', system-ui, sans-serif;
       user-select: none;
@@ -199,7 +199,7 @@ const MIN_SPD  = 72;      // ms/tick fastest
 const CENTER   = G * CS / 2;  // 12
 
 // ── RENDERER ─────────────────────────────────────────────────────────────────
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -208,9 +208,7 @@ document.body.prepend(renderer.domElement);
 
 // ── SCENE ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x9dc870); // fallback avant chargement image
-scene.fog = new THREE.FogExp2(0xb4d490, 0.007);
-new THREE.TextureLoader().load('img/bg-game.jpg', tex => { scene.background = tex; });
+scene.fog = new THREE.FogExp2(0xc8e896, 0.006);
 
 // ── PERSPECTIVE CAMERA ───────────────────────────────────────────────────────
 // FOV=70 + position at 45° (arctan(30/30)) ensures the full 20×20 grid +
