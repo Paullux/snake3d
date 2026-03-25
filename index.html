@@ -341,10 +341,39 @@ function spawnWall(c, r) {
 // ── SNAKE HEAD ───────────────────────────────────────────────────────────────
 function buildHead() {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R, 18, 14), matHead);
-  body.castShadow = true;
-  g.add(body);
-  // Eyes at local +Z (front of head)
+
+  // Upper half of head — static
+  const upper = new THREE.Mesh(
+    new THREE.SphereGeometry(HEAD_R, 18, 14, 0, Math.PI * 2, 0, Math.PI / 2),
+    matHead
+  );
+  upper.castShadow = true;
+  g.add(upper);
+
+  // Lower jaw — pivots at back of head (z = -HEAD_R*0.5) so front drops open
+  const jawPivot = new THREE.Group();
+  jawPivot.position.set(0, 0, -HEAD_R * 0.5);
+  const lower = new THREE.Mesh(
+    new THREE.SphereGeometry(HEAD_R, 18, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+    matHead
+  );
+  lower.castShadow = true;
+  lower.position.set(0, 0, HEAD_R * 0.5); // re-centre relative to pivot
+  jawPivot.add(lower);
+
+  // Tongue attached to jaw so it moves with the mouth
+  const tongueMat = new THREE.MeshLambertMaterial({ color: 0xff1744 });
+  const tBase = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.10), tongueMat);
+  tBase.position.set(0, -0.08, HEAD_R * 0.5 + 0.28);
+  const tL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.03, 0.06), tongueMat);
+  tL.position.set(-0.04, -0.08, HEAD_R * 0.5 + 0.37);
+  const tR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.03, 0.06), tongueMat);
+  tR.position.set( 0.04, -0.08, HEAD_R * 0.5 + 0.37);
+  jawPivot.add(tBase, tL, tR);
+
+  g.add(jawPivot);
+
+  // Eyes on upper part
   const ewGeo = new THREE.SphereGeometry(0.092, 10, 8);
   const ebGeo = new THREE.SphereGeometry(0.057, 8, 6);
   [-1, 1].forEach(side => {
@@ -354,18 +383,12 @@ function buildHead() {
     eb.position.set(side * 0.19, 0.14, 0.345);
     g.add(ew, eb);
   });
-  // Tongue
-  const tongueMat = new THREE.MeshLambertMaterial({ color: 0xff1744 });
-  const tBase = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.10), tongueMat);
-  tBase.position.set(0, -0.13, 0.38);
-  const tL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.03, 0.06), tongueMat);
-  tL.position.set(-0.04, -0.13, 0.47);
-  const tR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.03, 0.06), tongueMat);
-  tR.position.set(0.04, -0.13, 0.47);
-  g.add(tBase, tL, tR);
+
+  g.userData.jawPivot = jawPivot;
   return g;
 }
 const headGroup = buildHead();
+const jawPivot  = headGroup.userData.jawPivot;
 headGroup.visible = false;
 scene.add(headGroup);
 
@@ -544,7 +567,7 @@ function renderLeaderboard(scores, highlightScore, highlightName) {
 let snake = [], dir = {x:1,z:0}, nextDir = {x:1,z:0};
 let food = {c:0,r:0}, score = 0, spd = INIT_SPD;
 let state = 'start';
-let lastTick = 0, bob = 0;
+let lastTick = 0, bob = 0, mouthTarget = 0;
 let best = +(localStorage.getItem('snk3d_best') || 0);
 document.getElementById('best-val').textContent = best;
 
@@ -618,6 +641,9 @@ function tick() {
   if (nh.c < 0 || nh.c >= G || nh.r < 0 || nh.r >= G) return die();
 
   const ate = nh.c === food.c && nh.r === food.r;
+  // Open mouth 1 tick before eating (snake 2 cells away) AND while eating
+  const aboutToEat = nh.c + dir.x === food.c && nh.r + dir.z === food.r;
+  mouthTarget = (ate || aboutToEat) ? 1 : 0;
   const check = ate ? snake : snake.slice(0, -1);
   if (check.some(s => s.c === nh.c && s.r === nh.r)) return die();
 
@@ -779,6 +805,8 @@ function animate(now) {
     foodG.position.y = baseY + Math.sin(bob) * 0.09;
     foodG.rotation.y += 0.02;
   }
+  // Jaw animation — smooth open/close
+  jawPivot.rotation.x += (mouthTarget * 0.58 - jawPivot.rotation.x) * 0.22;
   renderer.render(scene, camera);
 }
 
