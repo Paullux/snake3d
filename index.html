@@ -717,7 +717,10 @@ function applyDir(d) {
 }
 document.addEventListener('keydown', e => {
   if (document.activeElement.tagName === 'INPUT') return;
-  if (state === 'scores') { showPlayBtn(); return; }
+  if (state === 'scores') {
+    if (document.getElementById('any-key').style.display === 'block') showPlayBtn();
+    return;
+  }
   if (e.key === 'Enter' || e.key === ' ') { if (state !== 'playing') startGame(); return; }
   const d = KEY_MAP[e.key];
   if (d) { e.preventDefault(); applyDir(d); }
