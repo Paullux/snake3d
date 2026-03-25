@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Snake 3D</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a1a0a;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    canvas { display: block; }
+
+    /* HUD */
+    #hud {
+      position: fixed; top: 0; left: 0; right: 0;
+      padding: 16px 24px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
+      z-index: 10; pointer-events: none;
+    }
+    .score-block { color: #fff; }
+    .score-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; opacity: 0.6; margin-bottom: 2px; }
+    .score-value { font-size: 36px; font-weight: 800; line-height: 1; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+
+    /* Overlay */
+    #overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(5,15,5,0.82);
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      z-index: 20;
+    }
+    .ov-title {
+      font-size: clamp(40px, 10vw, 80px); font-weight: 900;
+      color: #76ff03; letter-spacing: 6px; text-transform: uppercase;
+      text-shadow: 0 0 30px rgba(118,255,3,0.4), 0 0 60px rgba(118,255,3,0.2);
+      margin-bottom: 8px;
+    }
+    .ov-sub {
+      font-size: clamp(12px, 3vw, 15px); color: rgba(255,255,255,0.5);
+      letter-spacing: 2px; margin-bottom: 4px;
+    }
+    #final-score {
+      font-size: clamp(18px, 5vw, 28px); color: rgba(255,255,255,0.9);
+      margin: 18px 0 4px; display: none;
+    }
+    #new-best {
+      font-size: clamp(12px, 3vw, 15px); color: #ffd740;
+      margin-bottom: 4px; display: none;
+      letter-spacing: 2px; text-transform: uppercase;
+    }
+    .play-btn {
+      margin-top: 28px; padding: 15px 52px;
+      font-size: clamp(14px, 4vw, 20px); font-weight: 700;
+      letter-spacing: 3px; text-transform: uppercase;
+      background: linear-gradient(135deg, #66bb6a, #2e7d32);
+      border: none; border-radius: 50px; color: white; cursor: pointer;
+      box-shadow: 0 4px 24px rgba(102,187,106,0.35);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .play-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(102,187,106,0.5); }
+    .play-btn:active { transform: translateY(0); }
+
+    /* Leaderboard */
+    #lb-wrap {
+      display: none; width: 100%; max-width: 310px;
+      margin: 14px 0 2px; text-align: left;
+    }
+    #lb-head {
+      font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+      color: rgba(255,255,255,0.5); margin-bottom: 8px; text-align: center;
+    }
+    #lb-status { font-size: 13px; color: rgba(255,255,255,0.35); text-align: center; }
+    #lb-table { width: 100%; border-collapse: collapse; }
+    #lb-table tr { transition: background .15s; }
+    #lb-table tr.lb-me td { background: rgba(118,255,3,0.13); border-radius: 4px; }
+    #lb-table td { padding: 4px 6px; font-size: 13px; color: rgba(255,255,255,0.82); white-space: nowrap; }
+    #lb-table td.lb-rank { width: 28px; text-align: center; opacity: .6; }
+    #lb-table td.lb-name { width: 100%; overflow: hidden; text-overflow: ellipsis; max-width: 0; }
+    #lb-table td.lb-score { font-weight: 800; color: #76ff03; text-align: right; padding-left: 12px; }
+    #lb-table tr:first-child td { color: #ffd740; }
+
+    /* Name input */
+    #name-wrap { display: none; margin-top: 14px; text-align: center; }
+    #name-msg { font-size: 12px; letter-spacing: 2px; color: #76ff03; margin-bottom: 8px; text-transform: uppercase; }
+    #name-row { display: flex; gap: 8px; }
+    #name-input {
+      flex: 1; background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.25);
+      border-radius: 10px; color: #fff; padding: 9px 14px; font-size: 15px; outline: none;
+      font-family: inherit;
+    }
+    #name-input:focus { border-color: #76ff03; }
+    #name-ok {
+      padding: 9px 18px; background: #66bb6a; border: none; border-radius: 10px;
+      color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit;
+      transition: background .15s;
+    }
+    #name-ok:hover { background: #81c784; }
+    #name-ok:disabled { opacity: .5; cursor: default; }
+
+    /* D-pad */
+    #dpad { position: fixed; bottom: 24px; left: 24px; display: none; z-index: 10; }
+    @media (pointer: coarse) { #dpad { display: block; } #hint { display: none !important; } }
+    .dpad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 58px);
+      grid-template-rows: repeat(3, 58px);
+      gap: 4px;
+    }
+    .dbtn {
+      background: rgba(255,255,255,0.13); border: 1.5px solid rgba(255,255,255,0.22);
+      border-radius: 14px; color: white; font-size: 22px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .1s; -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .dbtn:active { background: rgba(76,175,80,0.45); border-color: rgba(76,175,80,0.7); }
+
+    #hint {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.28); font-size: 11px; letter-spacing: 2px;
+      pointer-events: none; z-index: 5;
+    }
+  </style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="score-block">
+    <div class="score-label">Score</div>
+    <div class="score-value" id="score-val">0</div>
+  </div>
+  <div class="score-block" style="text-align:right">
+    <div class="score-label">Best</div>
+    <div class="score-value" id="best-val">0</div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="ov-title">SNAKE 3D</div>
+  <div class="ov-sub" id="ov-sub">Arrow keys &middot; WASD &middot; Swipe</div>
+  <div id="final-score"></div>
+  <div id="new-best">&#9733; New Record! &#9733;</div>
+
+  <!-- Leaderboard (visible après game over si Firebase configuré) -->
+  <div id="lb-wrap">
+    <div id="lb-head">&#127942; CLASSEMENT</div>
+    <div id="lb-status">Chargement&#8230;</div>
+    <table id="lb-table"></table>
+  </div>
+
+  <!-- Saisie du nom si le joueur entre dans le top 10 -->
+  <div id="name-wrap">
+    <div id="name-msg">Tu entres dans le Top&nbsp;10&nbsp;!</div>
+    <div id="name-row">
+      <input id="name-input" type="text" placeholder="Ton pseudo" maxlength="16"
+             autocomplete="off" spellcheck="false">
+      <button id="name-ok">OK</button>
+    </div>
+  </div>
+
+  <button class="play-btn" id="play-btn">PLAY</button>
+</div>
+
+<div id="dpad">
+  <div class="dpad-grid">
+    <div></div><button class="dbtn" id="du">&#9650;</button><div></div>
+    <button class="dbtn" id="dl">&#9664;</button><div></div><button class="dbtn" id="dr">&#9654;</button>
+    <div></div><button class="dbtn" id="dd">&#9660;</button><div></div>
+  </div>
+</div>
+
+<div id="hint">ARROW KEYS &middot; WASD TO MOVE</div>
+
+<script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
+<script>
+'use strict';
+
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+const G        = 20;      // grid G×G
+const CS       = 1.2;     // cell spacing
+const TS       = 1.06;    // tile visual size
+const TH       = 0.17;    // tile height
+const TUBE_R   = 0.32;    // snake tube radius
+const HEAD_R   = 0.38;    // snake head radius
+const INIT_SPD = 175;     // ms/tick initial
+const MIN_SPD  = 72;      // ms/tick fastest
+const CENTER   = G * CS / 2;  // 12
+
+// ── RENDERER ─────────────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.prepend(renderer.domElement);
+
+// ── SCENE ────────────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1f0d);
+scene.fog = new THREE.FogExp2(0x0d1f0d, 0.008);
+
+// ── PERSPECTIVE CAMERA ───────────────────────────────────────────────────────
+// FOV=70 + position at 45° (arctan(30/30)) ensures the full 20×20 grid +
+// border walls are visible at all aspect ratios from 9:16 portrait to 21:9.
+// Camera at 45° angle (arctan(30/30)). FOV is computed adaptively:
+// on landscape we zoom in (FOV≈50°); on portrait we zoom out to keep the full
+// grid visible (FOV≈70°). Minimum v-half-angle of 25° ensures depth reads well.
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(CENTER, 30, CENTER + 30);
+camera.lookAt(CENTER, 0, CENTER + 3); // aim slightly forward to better fill the frame
+
+// ── LIGHTING ─────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xd0ebd0, 0.68));
+
+const sun = new THREE.DirectionalLight(0xfffde7, 1.3);
+sun.position.set(CENTER + 8, 20, CENTER - 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+const sc = sun.shadow.camera;
+sc.left = -CENTER - 12; sc.right = CENTER + 12;
+sc.top  =  CENTER + 12; sc.bottom = -CENTER - 12;
+sc.near = 1; sc.far = 60;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0xb2dfdb, 0.28);
+fill.position.set(-8, 6, CENTER + 10);
+scene.add(fill);
+
+// ── SHARED GEOMETRIES ────────────────────────────────────────────────────────
+const tileGeo  = new THREE.BoxGeometry(TS, TH, TS);
+const wallGeo  = new THREE.BoxGeometry(TS, TH * 5, TS);
+const jointGeo = new THREE.SphereGeometry(TUBE_R, 12, 8);
+// Connector: cylinder along Y, will be rotated per segment direction
+const connGeo  = new THREE.CylinderGeometry(TUBE_R, TUBE_R, CS, 10, 1);
+
+// ── SHARED MATERIALS ────────────────────────────────────────────────────────
+const matTileA = new THREE.MeshLambertMaterial({ color: 0x6abf6a });
+const matTileB = new THREE.MeshLambertMaterial({ color: 0x5eb55e });
+const matWall  = new THREE.MeshLambertMaterial({ color: 0x2e6b2e });
+const matBody  = new THREE.MeshPhongMaterial({ color: 0x5cd444, shininess: 60, specular: 0x99ff66 });
+const matHead  = new THREE.MeshPhongMaterial({ color: 0x90ff20, shininess: 90, specular: 0xccff55 });
+const matEyeW  = new THREE.MeshLambertMaterial({ color: 0xffffff });
+const matEyeB  = new THREE.MeshLambertMaterial({ color: 0x111111 });
+const matGrass = new THREE.MeshLambertMaterial({ color: 0x3d7a3d });
+
+// ── WORLD HELPERS ────────────────────────────────────────────────────────────
+function cellW(c, r) {
+  return new THREE.Vector3(c * CS + CS / 2, 0, r * CS + CS / 2);
+}
+const SEG_Y = TH / 2 + TUBE_R + 0.01;  // tube center sits on top of tiles
+
+// ── GRASS PLANE ──────────────────────────────────────────────────────────────
+const grass = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), matGrass);
+grass.rotation.x = -Math.PI / 2;
+grass.position.set(CENTER, -TH * 0.5, CENTER);
+grass.receiveShadow = true;
+scene.add(grass);
+
+// ── GRID TILES ───────────────────────────────────────────────────────────────
+for (let r = 0; r < G; r++) {
+  for (let c = 0; c < G; c++) {
+    const m = new THREE.Mesh(tileGeo, (r + c) % 2 === 0 ? matTileA : matTileB);
+    m.receiveShadow = true;
+    const p = cellW(c, r);
+    m.position.set(p.x, 0, p.z);
+    scene.add(m);
+  }
+}
+
+// ── BORDER WALLS ─────────────────────────────────────────────────────────────
+for (let i = -1; i <= G; i++) {
+  spawnWall(-1, i); spawnWall(G, i);
+  spawnWall(i, -1); spawnWall(i, G);
+}
+function spawnWall(c, r) {
+  const m = new THREE.Mesh(wallGeo, matWall);
+  m.castShadow = true; m.receiveShadow = true;
+  const p = cellW(c, r);
+  m.position.set(p.x, TH * 2, p.z);
+  scene.add(m);
+}
+
+// ── SNAKE HEAD ───────────────────────────────────────────────────────────────
+function buildHead() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R, 18, 14), matHead);
+  body.castShadow = true;
+  g.add(body);
+  // Eyes at local +Z (front of head)
+  const ewGeo = new THREE.SphereGeometry(0.092, 10, 8);
+  const ebGeo = new THREE.SphereGeometry(0.057, 8, 6);
+  [-1, 1].forEach(side => {
+    const ew = new THREE.Mesh(ewGeo, matEyeW);
+    const eb = new THREE.Mesh(ebGeo, matEyeB);
+    ew.position.set(side * 0.20, 0.14, 0.29);
+    eb.position.set(side * 0.19, 0.14, 0.345);
+    g.add(ew, eb);
+  });
+  // Tongue
+  const tongueMat = new THREE.MeshLambertMaterial({ color: 0xff1744 });
+  const tBase = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.10), tongueMat);
+  tBase.position.set(0, -0.13, 0.38);
+  const tL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.03, 0.06), tongueMat);
+  tL.position.set(-0.04, -0.13, 0.47);
+  const tR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.03, 0.06), tongueMat);
+  tR.position.set(0.04, -0.13, 0.47);
+  g.add(tBase, tL, tR);
+  return g;
+}
+const headGroup = buildHead();
+headGroup.visible = false;
+scene.add(headGroup);
+
+// ── SNAKE BODY POOL (joints + connectors) ────────────────────────────────────
+const jointPool = [];
+const connPool  = [];
+
+function acquire(pool, makeNew) {
+  const m = pool.find(x => !x.userData.used);
+  if (m) { m.userData.used = true; m.visible = true; return m; }
+  const nm = makeNew();
+  nm.userData.used = true;
+  pool.push(nm); scene.add(nm);
+  return nm;
+}
+function freePool(pool) {
+  pool.forEach(m => { m.userData.used = false; m.visible = false; });
+}
+function acquireJoint() {
+  return acquire(jointPool, () => {
+    const m = new THREE.Mesh(jointGeo, matBody);
+    m.castShadow = true; return m;
+  });
+}
+function acquireConn() {
+  return acquire(connPool, () => {
+    const m = new THREE.Mesh(connGeo, matBody);
+    m.castShadow = true; return m;
+  });
+}
+function freeAllBody() {
+  freePool(jointPool); freePool(connPool);
+}
+
+// ── FOOD (REALISTIC APPLE) ───────────────────────────────────────────────────
+function buildApple() {
+  const g = new THREE.Group();
+
+  // Body: slightly oblate red sphere
+  const bodyM = new THREE.Mesh(
+    new THREE.SphereGeometry(0.34, 20, 16),
+    new THREE.MeshPhongMaterial({ color: 0xd32f2f, shininess: 160, specular: 0xff9999 })
+  );
+  bodyM.scale.set(1.06, 0.88, 1.06);
+  bodyM.castShadow = true;
+  g.add(bodyM);
+
+  // Bottom bump (second lobe)
+  const bumpM = new THREE.Mesh(
+    new THREE.SphereGeometry(0.17, 12, 8),
+    new THREE.MeshPhongMaterial({ color: 0xc62828, shininess: 80 })
+  );
+  bumpM.position.set(0, -0.27, 0);
+  g.add(bumpM);
+
+  // Specular highlight spot
+  const hlM = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.38 })
+  );
+  hlM.position.set(-0.11, 0.18, 0.19);
+  g.add(hlM);
+
+  // Stem: tapered, slightly leaning
+  const stemM = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.02, 0.042, 0.28, 8),
+    new THREE.MeshLambertMaterial({ color: 0x4e342e })
+  );
+  stemM.position.set(0.02, 0.38, 0);
+  stemM.rotation.z = 0.18;
+  g.add(stemM);
+
+  // Leaf: bezier shape geometry
+  const ls = new THREE.Shape();
+  ls.moveTo(0, 0);
+  ls.bezierCurveTo( 0.15, 0.02,  0.20, 0.16,  0.11, 0.27);
+  ls.bezierCurveTo( 0.04, 0.34, -0.04, 0.34, -0.11, 0.27);
+  ls.bezierCurveTo(-0.20, 0.16, -0.15, 0.02,  0, 0);
+  const leafM = new THREE.Mesh(
+    new THREE.ShapeGeometry(ls, 10),
+    new THREE.MeshLambertMaterial({ color: 0x388e3c, side: THREE.DoubleSide })
+  );
+  leafM.position.set(0.13, 0.31, 0.02);
+  leafM.rotation.set(0.1, 0.25, -0.52);
+  g.add(leafM);
+
+  // Leaf vein (thin dark strip)
+  const veinM = new THREE.Mesh(
+    new THREE.BoxGeometry(0.012, 0.002, 0.22),
+    new THREE.MeshLambertMaterial({ color: 0x1b5e20 })
+  );
+  veinM.position.set(0.13, 0.315, 0.145);
+  veinM.rotation.set(0.1, 0.25, -0.52);
+  g.add(veinM);
+
+  return g;
+}
+const foodG = buildApple();
+foodG.visible = false;
+scene.add(foodG);
+
+// ── LEADERBOARD (Firebase Realtime Database) ─────────────────────────────────
+// Setup: create a free Firebase project at https://console.firebase.google.com
+//   1. Add a Realtime Database (start in test mode to allow public writes)
+//   2. Copy the database URL (e.g. https://your-project-default-rtdb.firebaseio.com)
+//   3. Replace the empty string below with that URL
+const FIREBASE_URL = '';   // ← paste your Firebase Realtime Database URL here
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function fetchScores() {
+  if (!FIREBASE_URL) return [];
+  try {
+    const res = await fetch(FIREBASE_URL + '/scores.json');
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data) return [];
+    return Object.values(data)
+      .filter(e => e && typeof e.score === 'number' && e.name)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+  } catch { return []; }
+}
+
+async function postScore(name, scoreVal) {
+  if (!FIREBASE_URL) return;
+  try {
+    await fetch(FIREBASE_URL + '/scores.json', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: String(name).trim().slice(0, 16), score: scoreVal, t: Date.now() })
+    });
+  } catch { /* silent */ }
+}
+
+function qualifies(scores, scoreVal) {
+  if (scoreVal <= 0) return false;
+  if (scores.length < 10) return true;
+  return scoreVal > scores[scores.length - 1].score;
+}
+
+function renderLeaderboard(scores, highlightScore, highlightName) {
+  const status = document.getElementById('lb-status');
+  const table  = document.getElementById('lb-table');
+  if (!scores.length) {
+    status.textContent = 'Aucun score pour l\'instant.';
+    table.innerHTML = '';
+    return;
+  }
+  status.textContent = '';
+  const medals = ['🥇','🥈','🥉'];
+  table.innerHTML = scores.map((e, i) => {
+    const isMe = highlightName
+      ? (e.name === highlightName && e.score === highlightScore)
+      : (e.score === highlightScore && i === scores.findIndex(x => x.score === highlightScore));
+    return `<tr${isMe ? ' class="lb-me"' : ''}>
+      <td class="lb-rank">${medals[i] || (i+1)}</td>
+      <td class="lb-name">${escHtml(e.name)}</td>
+      <td class="lb-score">${e.score}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── GAME STATE ───────────────────────────────────────────────────────────────
+let snake = [], dir = {x:1,z:0}, nextDir = {x:1,z:0};
+let food = {c:0,r:0}, score = 0, spd = INIT_SPD;
+let state = 'start';
+let lastTick = 0, bob = 0;
+let best = +(localStorage.getItem('snk3d_best') || 0);
+document.getElementById('best-val').textContent = best;
+
+function dirToRotY(d) {
+  if (d.x ===  1) return  Math.PI / 2;
+  if (d.x === -1) return -Math.PI / 2;
+  if (d.z ===  1) return  0;
+  return Math.PI;
+}
+
+function placeFood() {
+  const occ = new Set(snake.map(s => s.c + ',' + s.r));
+  let c, r;
+  do { c = (Math.random() * G) | 0; r = (Math.random() * G) | 0; }
+  while (occ.has(c + ',' + r));
+  food = {c, r};
+  const p = cellW(c, r);
+  foodG.position.set(p.x, TH / 2 + 0.34 * 0.88 + 0.03, p.z);
+  foodG.visible = true;
+  bob = 0;
+}
+
+function renderSnake() {
+  freeAllBody();
+  const y = SEG_Y;
+
+  // Head
+  const hp = cellW(snake[0].c, snake[0].r);
+  headGroup.position.set(hp.x, y, hp.z);
+  headGroup.rotation.y = dirToRotY(dir);
+  headGroup.visible = true;
+
+  // Body joints (index 1 → n-1)
+  for (let i = 1; i < snake.length; i++) {
+    const j = acquireJoint();
+    const p = cellW(snake[i].c, snake[i].r);
+    j.position.set(p.x, y, p.z);
+  }
+
+  // Connectors between every consecutive pair (including head → first body)
+  for (let i = 0; i < snake.length - 1; i++) {
+    const conn = acquireConn();
+    const p1 = cellW(snake[i].c,   snake[i].r);
+    const p2 = cellW(snake[i+1].c, snake[i+1].r);
+    conn.position.set((p1.x + p2.x) / 2, y, (p1.z + p2.z) / 2);
+    // CylinderGeometry default axis = Y; rotate to lie along X or Z
+    if (snake[i].r === snake[i+1].r) {
+      conn.rotation.set(0, 0, Math.PI / 2);   // same row → x direction
+    } else {
+      conn.rotation.set(Math.PI / 2, 0, 0);   // same col → z direction
+    }
+  }
+}
+
+function initGame() {
+  const mid = G >> 1;
+  snake = [{c:12,r:mid},{c:11,r:mid},{c:10,r:mid}];
+  dir = {x:1,z:0}; nextDir = {x:1,z:0};
+  score = 0; spd = INIT_SPD;
+  document.getElementById('score-val').textContent = '0';
+  freeAllBody();
+  renderSnake();
+  placeFood();
+}
+
+function tick() {
+  dir = {...nextDir};
+  const h = snake[0];
+  const nh = {c: h.c + dir.x, r: h.r + dir.z};
+
+  if (nh.c < 0 || nh.c >= G || nh.r < 0 || nh.r >= G) return die();
+
+  const ate = nh.c === food.c && nh.r === food.r;
+  const check = ate ? snake : snake.slice(0, -1);
+  if (check.some(s => s.c === nh.c && s.r === nh.r)) return die();
+
+  snake.unshift(nh);
+  if (!ate) snake.pop();
+  renderSnake();
+
+  if (ate) {
+    score++;
+    document.getElementById('score-val').textContent = score;
+    spd = Math.max(MIN_SPD, INIT_SPD - score * 4);
+    placeFood();
+  }
+}
+
+async function die() {
+  state = 'dead';
+  const newBest = score > best;
+  if (newBest) { best = score; localStorage.setItem('snk3d_best', best); }
+  document.getElementById('best-val').textContent = best;
+  document.getElementById('ov-sub').textContent = '— GAME OVER —';
+  const fs = document.getElementById('final-score');
+  fs.textContent = 'Score: ' + score; fs.style.display = 'block';
+  document.getElementById('new-best').style.display = newBest ? 'block' : 'none';
+  document.getElementById('play-btn').textContent = 'PLAY AGAIN';
+  document.getElementById('overlay').style.display = 'flex';
+
+  if (!FIREBASE_URL) return;
+
+  // Show leaderboard
+  const lbWrap = document.getElementById('lb-wrap');
+  lbWrap.style.display = 'block';
+  document.getElementById('lb-status').textContent = 'Chargement\u2026';
+  document.getElementById('lb-table').innerHTML = '';
+
+  const scores = await fetchScores();
+  const finalScore = score; // capture before any reset
+
+  if (qualifies(scores, finalScore)) {
+    // Ask for name, then post + re-render
+    renderLeaderboard(scores, finalScore, null);
+    document.getElementById('name-wrap').style.display = 'block';
+    document.getElementById('name-input').value = '';
+    document.getElementById('name-input').focus();
+    document.getElementById('name-ok').disabled = false;
+    // store scores snapshot for submission handler
+    document.getElementById('name-ok').dataset.score = finalScore;
+  } else {
+    renderLeaderboard(scores, finalScore, null);
+  }
+}
+
+function startGame() {
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('ov-sub').textContent = 'Arrow keys \u00b7 WASD \u00b7 Swipe';
+  document.getElementById('final-score').style.display = 'none';
+  document.getElementById('new-best').style.display = 'none';
+  document.getElementById('lb-wrap').style.display = 'none';
+  document.getElementById('name-wrap').style.display = 'none';
+  document.getElementById('play-btn').textContent = 'PLAY';
+  initGame();
+  state = 'playing';
+  lastTick = performance.now();
+}
+
+// ── INPUT ────────────────────────────────────────────────────────────────────
+const KEY_MAP = {
+  ArrowRight:{x:1,z:0}, d:{x:1,z:0},
+  ArrowLeft:{x:-1,z:0}, a:{x:-1,z:0},
+  ArrowDown:{x:0,z:1},  s:{x:0,z:1},
+  ArrowUp:{x:0,z:-1},   w:{x:0,z:-1},
+};
+function applyDir(d) {
+  if (state !== 'playing') return;
+  if (d.x !== 0 && d.x === -dir.x) return;
+  if (d.z !== 0 && d.z === -dir.z) return;
+  nextDir = d;
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { if (state !== 'playing') startGame(); return; }
+  const d = KEY_MAP[e.key];
+  if (d) { e.preventDefault(); applyDir(d); }
+});
+document.getElementById('du').addEventListener('click', () => applyDir({x:0,z:-1}));
+document.getElementById('dd').addEventListener('click', () => applyDir({x:0,z:1}));
+document.getElementById('dl').addEventListener('click', () => applyDir({x:-1,z:0}));
+document.getElementById('dr').addEventListener('click', () => applyDir({x:1,z:0}));
+document.getElementById('play-btn').addEventListener('click', startGame);
+
+// ── NAME SUBMISSION ───────────────────────────────────────────────────────────
+async function submitName() {
+  const input = document.getElementById('name-input');
+  const btn   = document.getElementById('name-ok');
+  const name  = input.value.trim();
+  if (!name) { input.focus(); return; }
+  const scoreVal = +(btn.dataset.score || 0);
+  btn.disabled = true;
+  input.disabled = true;
+  document.getElementById('name-wrap').style.display = 'none';
+  document.getElementById('lb-status').textContent = 'Envoi\u2026';
+  await postScore(name, scoreVal);
+  const updated = await fetchScores();
+  renderLeaderboard(updated, scoreVal, name);
+}
+document.getElementById('name-ok').addEventListener('click', submitName);
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); submitName(); }
+});
+
+let tStart = null;
+window.addEventListener('touchstart', e => {
+  tStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+}, {passive: true});
+window.addEventListener('touchend', e => {
+  if (!tStart || state !== 'playing') return;
+  const dx = e.changedTouches[0].clientX - tStart.x;
+  const dy = e.changedTouches[0].clientY - tStart.y;
+  tStart = null;
+  if (Math.abs(dx) < 15 && Math.abs(dy) < 15) return;
+  if (Math.abs(dx) > Math.abs(dy)) applyDir(dx > 0 ? {x:1,z:0} : {x:-1,z:0});
+  else applyDir(dy > 0 ? {x:0,z:1} : {x:0,z:-1});
+}, {passive: true});
+
+// ── RENDER LOOP ───────────────────────────────────────────────────────────────
+function animate(now) {
+  requestAnimationFrame(animate);
+  if (state === 'playing' && now - lastTick >= spd) {
+    tick(); lastTick = now;
+  }
+  if (foodG.visible) {
+    bob += 0.04;
+    const baseY = TH / 2 + 0.34 * 0.88 + 0.03;
+    foodG.position.y = baseY + Math.sin(bob) * 0.09;
+    foodG.rotation.y += 0.02;
+  }
+  renderer.render(scene, camera);
+}
+
+function updateCam() {
+  const a = window.innerWidth / window.innerHeight;
+  camera.aspect = a;
+  // Horizontal half-angle needed to contain the near grid corners ≈ 22°.
+  // Derive vertical FOV so that h-half >= 22° at any aspect ratio, with a
+  // floor of 25° so the scene never looks unnaturally zoomed in on wide screens.
+  const hNeed = 22 * Math.PI / 180;
+  const vNeed = Math.atan(Math.tan(hNeed) / a);
+  camera.fov = (2 * Math.max(vNeed, 25 * Math.PI / 180)) * 180 / Math.PI;
+  camera.updateProjectionMatrix();
+}
+updateCam();
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  updateCam();
+});
+
+initGame();
+animate(0);
+</script>
+</body>
+</html>
