@@ -261,8 +261,8 @@ function cellW(c, r) {
 const SEG_Y = TH / 2 + TUBE_R + 0.01;  // tube center sits on top of tiles
 
 // ── GRASS PLANE ──────────────────────────────────────────────────────────────
-// 28×28 covers only the grid + 1-cell border so the CSS meadow image shows beyond
-const grass = new THREE.Mesh(new THREE.PlaneGeometry(28, 28), matGrass);
+// 25×25 — juste sous les tuiles intérieures, les murs dépassent sur l'image
+const grass = new THREE.Mesh(new THREE.PlaneGeometry(25, 25), matGrass);
 grass.rotation.x = -Math.PI / 2;
 grass.position.set(CENTER, -TH * 0.5, CENTER);
 grass.receiveShadow = true;
@@ -270,7 +270,7 @@ scene.add(grass);
 
 // Soft rectangular edge fade — SDF box + smoothstep for natural dissolve
 (function() {
-  const S = 512, fade = 0.38; // fade = fraction of half-size used for dissolve
+  const S = 512, fade = 0.18; // fade = fraction of half-size used for dissolve
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = S;
   const img = new ImageData(S, S);
@@ -292,7 +292,7 @@ scene.add(grass);
   const ctx = canvas.getContext('2d');
   ctx.putImageData(img, 0, 0);
   const fadeGrass = new THREE.Mesh(
-    new THREE.PlaneGeometry(72, 72),
+    new THREE.PlaneGeometry(34, 34),
     new THREE.MeshLambertMaterial({
       color: 0x3d7a3d, transparent: true,
       alphaMap: new THREE.CanvasTexture(canvas),
