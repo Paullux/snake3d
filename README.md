@@ -50,14 +50,14 @@ Pour l'activer :
 
 1. Créer un projet sur [console.firebase.google.com](https://console.firebase.google.com)
 2. Ajouter une **Realtime Database** (mode test)
-3. Copier l'URL de la base (ex. `https://mon-projet-default-rtdb.firebaseio.com`)
+3. Copier l'URL de la base (ex. `https://mon-projet-default-rtdb.europe-west1.firebasedatabase.app`)
 4. Dans `index.html`, remplacer la ligne :
    ```js
    const FIREBASE_URL = '';
    ```
    par :
    ```js
-   const FIREBASE_URL = 'https://mon-projet-default-rtdb.firebaseio.com';
+   const FIREBASE_URL = 'https://mon-projet-default-rtdb.europe-west1.firebasedatabase.app';
    ```
 
 Les 10 meilleurs scores mondiaux sont affichés après chaque partie. Si le joueur entre dans le Top 10, son pseudo lui est demandé.

@@ -31,10 +31,16 @@
     #overlay {
       position: fixed; inset: 0;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: rgba(5,15,5,0.82);
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      background: url('img/bg-menu.jpg') center/cover no-repeat;
       z-index: 20;
     }
+    #overlay::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: rgba(10,28,10,0.68);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    #overlay > * { position: relative; z-index: 1; }
     .ov-title {
       font-size: clamp(40px, 10vw, 80px); font-weight: 900;
       color: #76ff03; letter-spacing: 6px; text-transform: uppercase;
@@ -202,8 +208,9 @@ document.body.prepend(renderer.domElement);
 
 // ── SCENE ────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0d1f0d);
-scene.fog = new THREE.FogExp2(0x0d1f0d, 0.008);
+scene.background = new THREE.Color(0x9dc870); // fallback avant chargement image
+scene.fog = new THREE.FogExp2(0xb4d490, 0.007);
+new THREE.TextureLoader().load('img/bg-game.jpg', tex => { scene.background = tex; });
 
 // ── PERSPECTIVE CAMERA ───────────────────────────────────────────────────────
 // FOV=70 + position at 45° (arctan(30/30)) ensures the full 20×20 grid +
@@ -420,7 +427,7 @@ scene.add(foodG);
 //   1. Add a Realtime Database (start in test mode to allow public writes)
 //   2. Copy the database URL (e.g. https://your-project-default-rtdb.firebaseio.com)
 //   3. Replace the empty string below with that URL
-const FIREBASE_URL = 'https://snake3d-a8f1c-default-rtdb.firebaseio.com';
+const FIREBASE_URL = 'https://snake3d-a8f1c-default-rtdb.europe-west1.firebasedatabase.app';
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
