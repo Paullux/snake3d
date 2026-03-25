@@ -142,9 +142,23 @@
       color: rgba(255,255,255,0.28); font-size: 11px; letter-spacing: 2px;
       pointer-events: none; z-index: 5;
     }
+
+    /* Mute button */
+    #mute-btn {
+      position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.28); border: 1.5px solid rgba(255,255,255,0.18);
+      border-radius: 20px; color: white; font-size: 18px; cursor: pointer;
+      width: 38px; height: 38px; display: flex; align-items: center;
+      justify-content: center; z-index: 15; transition: background .15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #mute-btn:hover { background: rgba(0,0,0,0.5); }
   </style>
 </head>
 <body>
+
+<audio id="bgm" src="audio/music.mp3" loop preload="auto"></audio>
+<button id="mute-btn" title="Mute / Unmute">🔊</button>
 
 <div id="hud">
   <div class="score-block">
@@ -564,6 +578,57 @@ function renderLeaderboard(scores, highlightScore, highlightName) {
   }).join('');
 }
 
+// ── AUDIO ────────────────────────────────────────────────────────────────────
+const bgm = document.getElementById('bgm');
+bgm.volume = 0.32;
+let audioCtx = null;
+let muted = localStorage.getItem('snk3d_muted') === '1';
+bgm.muted = muted;
+document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
+
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(f1, f2, dur, type = 'sine', vol = 0.22) {
+  if (muted) return;
+  try {
+    const ctx = getCtx();
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(f1, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(f2, ctx.currentTime + dur);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.start(); osc.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+function sndEat() {
+  playTone(520, 1040, 0.11, 'sine', 0.20);
+}
+function sndDie() {
+  playTone(320,  80, 0.40, 'sawtooth', 0.16);
+  setTimeout(() => playTone(100, 55, 0.30, 'sawtooth', 0.10), 180);
+}
+function sndStart() {
+  [261, 329, 392, 523].forEach((f, i) =>
+    setTimeout(() => playTone(f, f * 1.015, 0.10, 'sine', 0.16), i * 80)
+  );
+}
+function startAudio() {
+  getCtx();
+  if (!muted) bgm.play().catch(() => {});
+}
+document.getElementById('mute-btn').addEventListener('click', () => {
+  muted = !muted;
+  bgm.muted = muted;
+  if (!muted) bgm.play().catch(() => {});
+  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
+  localStorage.setItem('snk3d_muted', muted ? '1' : '0');
+});
+
 // ── GAME STATE ───────────────────────────────────────────────────────────────
 let snake = [], dir = {x:1,z:0}, nextDir = {x:1,z:0};
 let food = {c:0,r:0}, score = 0, spd = INIT_SPD;
@@ -653,6 +718,7 @@ function tick() {
   renderSnake();
 
   if (ate) {
+    sndEat();
     score++;
     document.getElementById('score-val').textContent = score;
     spd = Math.max(MIN_SPD, INIT_SPD - score * 4);
@@ -677,6 +743,8 @@ function showPlayBtn() {
 }
 
 async function die() {
+  sndDie();
+  bgm.pause();
   state = 'scores';
   const newBest = score > best;
   if (newBest) { best = score; localStorage.setItem('snk3d_best', best); }
@@ -727,6 +795,8 @@ function startGame() {
   initGame();
   state = 'playing';
   lastTick = performance.now();
+  sndStart();
+  startAudio();
 }
 
 // ── INPUT ────────────────────────────────────────────────────────────────────
