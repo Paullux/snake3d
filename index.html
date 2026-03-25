@@ -109,6 +109,15 @@
     #name-ok:hover { background: #81c784; }
     #name-ok:disabled { opacity: .5; cursor: default; }
 
+    /* Any-key prompt */
+    #any-key {
+      display: none; margin-top: 22px;
+      font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+      color: rgba(255,255,255,0.55); cursor: pointer;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:.25} 50%{opacity:1} }
+
     /* D-pad */
     #dpad { position: fixed; bottom: 24px; left: 24px; display: none; z-index: 10; }
     @media (pointer: coarse) { #dpad { display: block; } #hint { display: none !important; } }
@@ -170,6 +179,7 @@
     </div>
   </div>
 
+  <div id="any-key">Appuyez sur une touche pour rejouer</div>
   <button class="play-btn" id="play-btn">PLAY</button>
 </div>
 
@@ -261,8 +271,8 @@ function cellW(c, r) {
 const SEG_Y = TH / 2 + TUBE_R + 0.01;  // tube center sits on top of tiles
 
 // ── GRASS PLANE ──────────────────────────────────────────────────────────────
-// 25×25 — juste sous les tuiles intérieures, les murs dépassent sur l'image
-const grass = new THREE.Mesh(new THREE.PlaneGeometry(25, 25), matGrass);
+// 21×21 — strictement sous les tuiles, les murs dépassent sur l'image
+const grass = new THREE.Mesh(new THREE.PlaneGeometry(21, 21), matGrass);
 grass.rotation.x = -Math.PI / 2;
 grass.position.set(CENTER, -TH * 0.5, CENTER);
 grass.receiveShadow = true;
@@ -270,7 +280,7 @@ scene.add(grass);
 
 // Soft rectangular edge fade — SDF box + smoothstep for natural dissolve
 (function() {
-  const S = 512, fade = 0.18; // fade = fraction of half-size used for dissolve
+  const S = 512, fade = 0.22; // fade = fraction of half-size used for dissolve
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = S;
   const img = new ImageData(S, S);
@@ -292,7 +302,7 @@ scene.add(grass);
   const ctx = canvas.getContext('2d');
   ctx.putImageData(img, 0, 0);
   const fadeGrass = new THREE.Mesh(
-    new THREE.PlaneGeometry(34, 34),
+    new THREE.PlaneGeometry(29, 29),
     new THREE.MeshLambertMaterial({
       color: 0x3d7a3d, transparent: true,
       alphaMap: new THREE.CanvasTexture(canvas),
@@ -629,8 +639,18 @@ function tick() {
   }
 }
 
-async function die() {
+function showAnyKey() {
+  document.getElementById('any-key').style.display = 'block';
+}
+function showPlayBtn() {
+  if (state !== 'scores') return;
+  document.getElementById('any-key').style.display = 'none';
+  document.getElementById('play-btn').style.display = '';
   state = 'dead';
+}
+
+async function die() {
+  state = 'scores';
   const newBest = score > best;
   if (newBest) { best = score; localStorage.setItem('snk3d_best', best); }
   document.getElementById('best-val').textContent = best;
@@ -639,9 +659,10 @@ async function die() {
   fs.textContent = 'Score: ' + score; fs.style.display = 'block';
   document.getElementById('new-best').style.display = newBest ? 'block' : 'none';
   document.getElementById('play-btn').textContent = 'PLAY AGAIN';
+  document.getElementById('play-btn').style.display = 'none';
   document.getElementById('overlay').style.display = 'flex';
 
-  if (!FIREBASE_URL) return;
+  if (!FIREBASE_URL) { showAnyKey(); return; }
 
   // Show leaderboard
   const lbWrap = document.getElementById('lb-wrap');
@@ -653,16 +674,16 @@ async function die() {
   const finalScore = score; // capture before any reset
 
   if (qualifies(scores, finalScore)) {
-    // Ask for name, then post + re-render
     renderLeaderboard(scores, finalScore, null);
     document.getElementById('name-wrap').style.display = 'block';
     document.getElementById('name-input').value = '';
     document.getElementById('name-input').focus();
     document.getElementById('name-ok').disabled = false;
-    // store scores snapshot for submission handler
     document.getElementById('name-ok').dataset.score = finalScore;
+    // showAnyKey() sera appelé après la soumission du nom
   } else {
     renderLeaderboard(scores, finalScore, null);
+    showAnyKey();
   }
 }
 
@@ -673,6 +694,8 @@ function startGame() {
   document.getElementById('new-best').style.display = 'none';
   document.getElementById('lb-wrap').style.display = 'none';
   document.getElementById('name-wrap').style.display = 'none';
+  document.getElementById('any-key').style.display = 'none';
+  document.getElementById('play-btn').style.display = '';
   document.getElementById('play-btn').textContent = 'PLAY';
   initGame();
   state = 'playing';
@@ -694,10 +717,12 @@ function applyDir(d) {
 }
 document.addEventListener('keydown', e => {
   if (document.activeElement.tagName === 'INPUT') return;
+  if (state === 'scores') { showPlayBtn(); return; }
   if (e.key === 'Enter' || e.key === ' ') { if (state !== 'playing') startGame(); return; }
   const d = KEY_MAP[e.key];
   if (d) { e.preventDefault(); applyDir(d); }
 });
+document.getElementById('any-key').addEventListener('click', showPlayBtn);
 document.getElementById('du').addEventListener('click', () => applyDir({x:0,z:-1}));
 document.getElementById('dd').addEventListener('click', () => applyDir({x:0,z:1}));
 document.getElementById('dl').addEventListener('click', () => applyDir({x:-1,z:0}));
@@ -718,6 +743,7 @@ async function submitName() {
   await postScore(name, scoreVal);
   const updated = await fetchScores();
   renderLeaderboard(updated, scoreVal, name);
+  showAnyKey();
 }
 document.getElementById('name-ok').addEventListener('click', submitName);
 document.getElementById('name-input').addEventListener('keydown', e => {
