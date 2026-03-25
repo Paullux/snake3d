@@ -7,7 +7,7 @@ Une seule page HTML statique — zéro dépendance, zéro build, déployable dir
 
 ## Aperçu
 
-![Snake 3D](https://paullux.github.io/snake3d/)
+![Snake 3D](img/bg-menu.jpg)
 
 - Terrain 3D avec éclairage et ombres
 - Corps du serpent continu (tube + sphères)
