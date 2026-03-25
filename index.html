@@ -261,7 +261,8 @@ function cellW(c, r) {
 const SEG_Y = TH / 2 + TUBE_R + 0.01;  // tube center sits on top of tiles
 
 // ── GRASS PLANE ──────────────────────────────────────────────────────────────
-const grass = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), matGrass);
+// 28×28 covers only the grid + 1-cell border so the CSS meadow image shows beyond
+const grass = new THREE.Mesh(new THREE.PlaneGeometry(28, 28), matGrass);
 grass.rotation.x = -Math.PI / 2;
 grass.position.set(CENTER, -TH * 0.5, CENTER);
 grass.receiveShadow = true;
@@ -420,6 +421,15 @@ const foodG = buildApple();
 foodG.visible = false;
 scene.add(foodG);
 
+// ── EAT MARKER (green flash where apple was) ─────────────────────────────────
+const eatMarker = new THREE.Mesh(
+  new THREE.SphereGeometry(0.46, 12, 8),
+  new THREE.MeshPhongMaterial({ color: 0x76ff03, shininess: 80, transparent: true, opacity: 0.85 })
+);
+eatMarker.visible = false;
+scene.add(eatMarker);
+let eatMarkerTimeout = null;
+
 // ── LEADERBOARD (Firebase Realtime Database) ─────────────────────────────────
 // Setup: create a free Firebase project at https://console.firebase.google.com
 //   1. Add a Realtime Database (start in test mode to allow public writes)
@@ -573,6 +583,12 @@ function tick() {
     score++;
     document.getElementById('score-val').textContent = score;
     spd = Math.max(MIN_SPD, INIT_SPD - score * 4);
+    // Show eat marker at apple position before placing new food
+    const ep = cellW(food.c, food.r);
+    eatMarker.position.set(ep.x, SEG_Y, ep.z);
+    eatMarker.visible = true;
+    if (eatMarkerTimeout) clearTimeout(eatMarkerTimeout);
+    eatMarkerTimeout = setTimeout(() => { eatMarker.visible = false; }, 420);
     placeFood();
   }
 }
