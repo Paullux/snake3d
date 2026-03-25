@@ -268,19 +268,31 @@ grass.position.set(CENTER, -TH * 0.5, CENTER);
 grass.receiveShadow = true;
 scene.add(grass);
 
-// Soft edge fade: larger plane with radial alpha map to blend into background
+// Soft rectangular edge fade — SDF box + smoothstep for natural dissolve
 (function() {
+  const S = 512, fade = 0.38; // fade = fraction of half-size used for dissolve
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 256;
+  canvas.width = canvas.height = S;
+  const img = new ImageData(S, S);
+  const half = S / 2;
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      // distance to nearest edge, normalized 0→edge, 1→centre
+      const dx = Math.min(x, S - 1 - x) / half;
+      const dy = Math.min(y, S - 1 - y) / half;
+      const d  = Math.min(dx, dy) / fade;
+      // cubic smoothstep
+      const t  = Math.max(0, Math.min(d, 1));
+      const a  = t * t * (3 - 2 * t);
+      const i  = (y * S + x) * 4;
+      img.data[i] = img.data[i+1] = img.data[i+2] = 255;
+      img.data[i+3] = Math.round(a * 255);
+    }
+  }
   const ctx = canvas.getContext('2d');
-  const grad = ctx.createRadialGradient(128, 128, 52, 128, 128, 128);
-  grad.addColorStop(0,   'rgba(255,255,255,1)');
-  grad.addColorStop(0.5, 'rgba(255,255,255,0.9)');
-  grad.addColorStop(1,   'rgba(255,255,255,0)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 256);
+  ctx.putImageData(img, 0, 0);
   const fadeGrass = new THREE.Mesh(
-    new THREE.PlaneGeometry(60, 60),
+    new THREE.PlaneGeometry(72, 72),
     new THREE.MeshLambertMaterial({
       color: 0x3d7a3d, transparent: true,
       alphaMap: new THREE.CanvasTexture(canvas),
