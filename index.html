@@ -160,16 +160,43 @@
     /* Mute button */
     #mute-btn {
       position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
-      background: rgba(0,0,0,0.28); border: 1.5px solid rgba(255,255,255,0.18);
-      border-radius: 20px; color: white; font-size: 18px; cursor: pointer;
-      width: 38px; height: 38px; display: flex; align-items: center;
+      background: rgba(0,0,0,0.60); border: 2px solid rgba(255,255,255,0.45);
+      border-radius: 22px; color: white; font-size: 20px; cursor: pointer;
+      width: 46px; height: 46px; display: flex; align-items: center;
       justify-content: center; z-index: 15; transition: background .15s;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
       -webkit-tap-highlight-color: transparent;
     }
-    #mute-btn:hover { background: rgba(0,0,0,0.5); }
+    #mute-btn:hover { background: rgba(0,0,0,0.80); border-color: rgba(255,255,255,0.7); }
 
     /* Level badge in HUD center */
-    #level-val { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,0.55); margin-top:4px; }
+    #level-val {
+      font-size: 18px; font-weight: 800; letter-spacing: 2px;
+      text-transform: uppercase; color: #fff; margin-top: 2px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+    }
+
+    /* Animal countdown timer */
+    #animal-timer {
+      position: fixed; display: none;
+      width: 54px; height: 54px;
+      transform: translate(-50%, -130%);
+      z-index: 12; pointer-events: none;
+    }
+    #animal-timer svg {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      transform: rotate(-90deg);
+    }
+    .atimer-bg { fill: none; stroke: rgba(0,0,0,0.45); stroke-width: 3.5; }
+    #atimer-arc {
+      fill: none; stroke: #76ff03; stroke-width: 3.5; stroke-linecap: round;
+      stroke-dasharray: 94.25 94.25; stroke-dashoffset: 0;
+    }
+    #atimer-secs {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 800; color: #fff;
+      text-shadow: 0 1px 6px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.8);
+    }
 
     /* Theme crossfade overlay */
     #theme-flash { position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:30;transition:opacity .32s ease; }
@@ -256,6 +283,14 @@
 </div>
 
 <div id="theme-flash"></div>
+
+<div id="animal-timer">
+  <svg viewBox="0 0 36 36">
+    <circle class="atimer-bg" cx="18" cy="18" r="15"/>
+    <circle id="atimer-arc" cx="18" cy="18" r="15"/>
+  </svg>
+  <span id="atimer-secs">10</span>
+</div>
 
 <div id="hint">ARROW KEYS &middot; WASD TO MOVE</div>
 
@@ -762,7 +797,7 @@ function buildMouse() {
     leg.position.set(x,-0.14,z); leg.rotation.x=0.2; g.add(leg);
   });
 
-  g.scale.setScalar(0.9);
+  g.scale.setScalar(1.35); // same visual size as apple
   return g;
 }
 // Register builders here to support future animal types
@@ -773,7 +808,9 @@ const mouseG = buildMouse();
 mouseG.visible = false;
 scene.add(mouseG);
 
-let animalPos = null, animalBob = 0;
+const ANIMAL_LIFETIME = 10; // seconds before mouse disappears
+let animalPos = null, animalBob = 0, animalSpawnTime = 0;
+const _timerVec = new THREE.Vector3(); // reusable, avoids per-frame allocation
 
 function spawnAnimal() {
   const occ = new Set(snake.map(s => s.c+','+s.r));
@@ -783,13 +820,19 @@ function spawnAnimal() {
   while (occ.has(c+','+r));
   animalPos = {c,r};
   const p = cellW(c,r);
-  mouseG.position.set(p.x, TH/2+0.22*0.70+0.03, p.z);
+  mouseG.position.set(p.x, TH/2 + 0.22*0.70*1.35 + 0.02, p.z);
   mouseG.rotation.y = Math.random()*Math.PI*2;
-  mouseG.scale.setScalar(0.9);
+  mouseG.scale.setScalar(1.35);
   mouseG.visible = true;
   animalBob = 0;
+  animalSpawnTime = performance.now();
+  document.getElementById('animal-timer').style.display = 'block';
 }
-function hideAnimal() { animalPos=null; mouseG.visible=false; }
+function hideAnimal() {
+  animalPos = null;
+  mouseG.visible = false;
+  document.getElementById('animal-timer').style.display = 'none';
+}
 
 // ── LEADERBOARD (Firebase Realtime Database) ─────────────────────────────────
 // Setup: create a free Firebase project at https://console.firebase.google.com
@@ -1184,12 +1227,37 @@ function animate(now) {
     foodG.position.y = baseY + Math.sin(bob) * 0.09;
     foodG.rotation.y += 0.02;
   }
-  // Animal idle animation — gentle hover + slow rotation
+  // Animal idle animation + countdown timer
   if (mouseG.visible) {
-    animalBob += 0.035;
-    const baseA = TH/2 + 0.22*0.70 + 0.03;
-    mouseG.position.y = baseA + Math.sin(animalBob) * 0.05;
-    mouseG.rotation.y += 0.015;
+    const elapsed   = (now - animalSpawnTime) / 1000;
+    const remaining = ANIMAL_LIFETIME - elapsed;
+    if (remaining <= 0) {
+      hideAnimal();
+    } else {
+      animalBob += 0.035;
+      const baseA = TH/2 + 0.22*0.70*1.35 + 0.02;
+      mouseG.position.y = baseA + Math.sin(animalBob) * 0.05;
+      mouseG.rotation.y += 0.015;
+
+      // Update ring & number
+      const secs    = Math.ceil(remaining);
+      const arcEl   = document.getElementById('atimer-arc');
+      const secsEl  = document.getElementById('atimer-secs');
+      secsEl.textContent = secs;
+      arcEl.style.strokeDashoffset = 94.25 * (1 - remaining / ANIMAL_LIFETIME);
+      // colour: green → yellow → red
+      const hue = Math.round((remaining / ANIMAL_LIFETIME) * 120);
+      arcEl.style.stroke = `hsl(${hue},100%,55%)`;
+
+      // Project 3D head pos → screen
+      _timerVec.set(mouseG.position.x, mouseG.position.y + 0.55, mouseG.position.z);
+      _timerVec.project(camera);
+      const tx = (_timerVec.x + 1) / 2 * window.innerWidth;
+      const ty = (-_timerVec.y + 1) / 2 * window.innerHeight;
+      const timerEl = document.getElementById('animal-timer');
+      timerEl.style.left = tx + 'px';
+      timerEl.style.top  = ty + 'px';
+    }
   }
   // Jaw animation — smooth open/close
   jawPivot.rotation.x += (mouthTarget * 0.58 - jawPivot.rotation.x) * 0.22;
