@@ -1163,7 +1163,6 @@ async function die() {
   state = 'scores';
   const newBest = score > best;
   if (newBest) { best = score; localStorage.setItem('snk3d_best', best); }
-  document.getElementById('best-val').textContent = best;
   document.getElementById('ov-sub').textContent = '— GAME OVER —';
   const fs = document.getElementById('final-score');
   fs.textContent = 'Score: ' + score; fs.style.display = 'block';
