@@ -1080,6 +1080,7 @@ function resetDeathAnim() {
   // Skin colours restored by applySkin() called just after
 }
 
+let preDieTimeout = null;
 function preDie() {
   if (state !== 'playing') return;
   state = 'dying';           // freeze game loop
@@ -1087,7 +1088,7 @@ function preDie() {
   bgm.pause();
   mouthTarget = 0;           // close mouth
   startDeathAnim();
-  setTimeout(() => die(), 520);
+  preDieTimeout = setTimeout(() => die(), 520);
 }
 
 function tick() {
@@ -1197,6 +1198,7 @@ async function die() {
 }
 
 function startGame() {
+  if (preDieTimeout) { clearTimeout(preDieTimeout); preDieTimeout = null; }
   document.getElementById('overlay').style.display = 'none';
   document.getElementById('ov-sub').textContent = 'Arrow keys \u00b7 WASD \u00b7 Swipe';
   document.getElementById('final-score').style.display = 'none';
@@ -1232,7 +1234,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('any-key').style.display === 'block') showPlayBtn();
     return;
   }
-  if (e.key === 'Enter' || e.key === ' ') { if (state !== 'playing') startGame(); return; }
+  if (e.key === 'Enter' || e.key === ' ') { if (state === 'dead') startGame(); return; }
   const d = KEY_MAP[e.key];
   if (d) { e.preventDefault(); applyDir(d); }
 });
