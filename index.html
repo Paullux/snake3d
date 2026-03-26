@@ -167,6 +167,25 @@
       -webkit-tap-highlight-color: transparent;
     }
     #mute-btn:hover { background: rgba(0,0,0,0.5); }
+
+    /* Level badge in HUD center */
+    #level-val { font-size:11px; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,0.55); margin-top:4px; }
+
+    /* Theme crossfade overlay */
+    #theme-flash { position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:30;transition:opacity .32s ease; }
+
+    /* Skin selector */
+    #skin-wrap { margin:18px 0 0; text-align:center; }
+    #skin-label { font-size:10px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,0.38);margin-bottom:10px; }
+    #skin-btns { display:flex;gap:8px;flex-wrap:wrap;justify-content:center; }
+    .skin-btn {
+      padding:7px 16px;background:rgba(255,255,255,0.07);
+      border:1.5px solid rgba(255,255,255,0.18);border-radius:20px;
+      color:rgba(255,255,255,0.55);font-size:12px;cursor:pointer;font-family:inherit;
+      letter-spacing:1px;transition:border-color .15s,color .15s,background .15s;
+    }
+    .skin-btn:hover { border-color:rgba(255,255,255,0.45);color:#fff; }
+    .skin-btn.active { border-color:#76ff03;color:#76ff03;background:rgba(118,255,3,0.10); }
   </style>
 </head>
 <body>
@@ -179,6 +198,10 @@
     <div class="score-label">Score</div>
     <div class="score-value" id="score-val">0</div>
   </div>
+  <div class="score-block" style="text-align:center">
+    <div class="score-label">Niveau</div>
+    <div id="level-val">Prairie</div>
+  </div>
   <div class="score-block" style="text-align:right">
     <div class="score-label">Best</div>
     <div class="score-value" id="best-val">0</div>
@@ -188,6 +211,18 @@
 <div id="overlay">
   <div class="ov-title">SNAKE 3D</div>
   <div class="ov-sub" id="ov-sub">Arrow keys &middot; WASD &middot; Swipe</div>
+
+  <!-- Skin selector — visible on start and game-over screens -->
+  <div id="skin-wrap">
+    <div id="skin-label">SKIN DU SERPENT</div>
+    <div id="skin-btns">
+      <button class="skin-btn active" data-skin="0">Classique</button>
+      <button class="skin-btn" data-skin="1">N&eacute;on</button>
+      <button class="skin-btn" data-skin="2">M&eacute;tal</button>
+      <button class="skin-btn" data-skin="3">Pixel</button>
+    </div>
+  </div>
+
   <div id="final-score"></div>
   <div id="new-best">&#9733; New Record! &#9733;</div>
 
@@ -220,6 +255,8 @@
   </div>
 </div>
 
+<div id="theme-flash"></div>
+
 <div id="hint">ARROW KEYS &middot; WASD TO MOVE</div>
 
 <script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
@@ -236,6 +273,56 @@ const HEAD_R   = 0.38;    // snake head radius
 const INIT_SPD = 175;     // ms/tick initial
 const MIN_SPD  = 72;      // ms/tick fastest
 const CENTER   = G * CS / 2;  // 12
+
+// ── SKINS ─────────────────────────────────────────────────────────────────────
+// Extend this array to add new skins: { id, label, body:{}, head:{} }
+const SKINS = [
+  { id:'classic', label:'Classique',
+    body:{ color:0x5cd444, shininess:60,  specular:0x99ff66, emissive:0x000000 },
+    head:{ color:0x90ff20, shininess:90,  specular:0xccff55, emissive:0x000000 } },
+  { id:'neon',    label:'Néon',
+    body:{ color:0x00ffaa, shininess:120, specular:0xaaffee, emissive:0x003322 },
+    head:{ color:0x00ffee, shininess:150, specular:0xaaffff, emissive:0x004433 } },
+  { id:'metal',   label:'Métal',
+    body:{ color:0x8899aa, shininess:200, specular:0xffffff, emissive:0x111518 },
+    head:{ color:0xaabbcc, shininess:220, specular:0xffffff, emissive:0x161c20 } },
+  { id:'pixel',   label:'Pixel',
+    body:{ color:0x33cc33, shininess:0,   specular:0x000000, emissive:0x112211 },
+    head:{ color:0x66ff33, shininess:0,   specular:0x000000, emissive:0x223311 } },
+];
+
+// ── THEMES ────────────────────────────────────────────────────────────────────
+// One theme triggers every 10 apples. Extend this array to add new worlds.
+// bg/music filenames follow the pattern: bg-game-{slug}.jpg / music-{slug}.mp3
+const THEMES = [
+  { name:'Prairie',   bg:'img/bg-game.jpg',                   music:'audio/music.mp3',
+    fog:0xc8e896, fogD:0.006, tileA:0x6abf6a, tileB:0x5eb55e, wall:0x2e6b2e,
+    ambient:0xd0ebd0, sun:0xfffde7, fill:0xb2dfdb },
+  { name:'Arctique',  bg:'img/bg-game-arctique.jpg',           music:'audio/music-arctique.mp3',
+    fog:0xC8E4F4, fogD:0.015, tileA:0xDDEEF8, tileB:0xD0E8F5, wall:0x2E7FAA,
+    ambient:0xE8F4FF, sun:0xE8C87A, fill:0x5BAFD6 },
+  { name:'Désert',    bg:'img/bg-game-desert-egypte.jpg',      music:'audio/music-desert-egypte.mp3',
+    fog:0xF5E0A0, fogD:0.012, tileA:0xF0C84A, tileB:0xE8B830, wall:0xC17A2E,
+    ambient:0xFFF0D0, sun:0xFFFFFF, fill:0xD4960A },
+  { name:'Océan',     bg:'img/bg-game-bateau.jpg',             music:'audio/music-bateau.mp3',
+    fog:0xA8D8F0, fogD:0.012, tileA:0xC8913A, tileB:0xB8812A, wall:0xA86C1E,
+    ambient:0xD0EEFF, sun:0xF0F8FF, fill:0xF0F8FF },
+  { name:'Jungle',    bg:'img/bg-game-jungle.jpg',             music:'audio/music-jungle.mp3',
+    fog:0xB8E870, fogD:0.018, tileA:0x7DC44A, tileB:0x6DB43A, wall:0x2D8A28,
+    ambient:0xD0FF90, sun:0xF0D020, fill:0xE8721A },
+  { name:'Ville',     bg:'img/bg-game-ville.jpg',              music:'audio/music-ville.mp3',
+    fog:0xD8E8F0, fogD:0.010, tileA:0xC8AA78, tileB:0xB89A68, wall:0xB87040,
+    ambient:0xD8E8F0, sun:0xFFFFFF, fill:0xE04848 },
+  { name:'Volcan',    bg:'img/bg-game-volcan.jpg',             music:'audio/music-volcan.mp3',
+    fog:0x601010, fogD:0.020, tileA:0x3A2020, tileB:0x2A1010, wall:0xE03A00,
+    ambient:0x401010, sun:0xFF7A00, fill:0xFF7A00 },
+  { name:'Cyberpunk', bg:'img/bg-game-cyberpunk.jpg',          music:'audio/music-cyberpunk.mp3',
+    fog:0x200E38, fogD:0.015, tileA:0x2A1840, tileB:0x1A1030, wall:0x9060D8,
+    ambient:0x201038, sun:0x00D8FF, fill:0x9060D8 },
+  { name:'Mars',      bg:'img/bg-game-mars.jpg',               music:'audio/music-mars.mp3',
+    fog:0xE06010, fogD:0.015, tileA:0xC04000, tileB:0xA03000, wall:0xA03000,
+    ambient:0x703010, sun:0xFFD060, fill:0xFFD060 },
+];
 
 // ── RENDERER ─────────────────────────────────────────────────────────────────
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -260,7 +347,8 @@ camera.position.set(CENTER, 30, CENTER + 30);
 camera.lookAt(CENTER, 0, CENTER + 3); // aim slightly forward to better fill the frame
 
 // ── LIGHTING ─────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xd0ebd0, 0.68));
+const ambientLight = new THREE.AmbientLight(0xd0ebd0, 0.68);
+scene.add(ambientLight);
 
 const sun = new THREE.DirectionalLight(0xfffde7, 1.3);
 sun.position.set(CENTER + 8, 20, CENTER - 10);
@@ -292,6 +380,103 @@ const matHead  = new THREE.MeshPhongMaterial({ color: 0x90ff20, shininess: 90, s
 const matEyeW  = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const matEyeB  = new THREE.MeshLambertMaterial({ color: 0x111111 });
 const matGrass = new THREE.MeshLambertMaterial({ color: 0x3d7a3d });
+
+// ── SCALE BUMP TEXTURE ───────────────────────────────────────────────────────
+// Triangular chevron scales arranged in offset rows — applied as bumpMap on body
+(function applyScales() {
+  const S = 256, cols = 6, rows = 4;
+  const canvas = document.createElement('canvas');
+  canvas.width = S; canvas.height = S;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#444';
+  ctx.fillRect(0, 0, S, S);
+
+  const cw = S / cols, ch = S / rows;
+
+  for (let row = -1; row <= rows + 1; row++) {
+    for (let col = -1; col <= cols + 1; col++) {
+      const xOff = (row % 2 === 0) ? 0 : cw / 2;
+      const cx = col * cw + xOff + cw / 2;
+      const cy = row * ch + ch * 0.35; // anchor near top of cell
+
+      const rx = cw * 0.50, ry = ch * 0.72;
+
+      // Scale shape: arc across the top, tapering to a point at the bottom
+      ctx.beginPath();
+      ctx.arc(cx, cy, rx, Math.PI * 0.08, Math.PI * 0.92); // top rounded edge
+      ctx.lineTo(cx, cy + ry);                              // taper to point
+      ctx.closePath();
+
+      // Gradient: bright center → dark edges for bump illusion
+      const grad = ctx.createRadialGradient(cx, cy + ry * 0.1, 0, cx, cy + ry * 0.1, ry);
+      grad.addColorStop(0.0, '#ffffff');
+      grad.addColorStop(0.55, '#cccccc');
+      grad.addColorStop(0.85, '#777777');
+      grad.addColorStop(1.0,  '#111111');
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 3); // 2 repeats around circumference, 3 along length
+  matBody.bumpMap   = tex;
+  matBody.bumpScale = 0.18;
+  matBody.needsUpdate = true;
+})();
+
+// ── SKIN APPLICATION ──────────────────────────────────────────────────────────
+let activeSkin = +(localStorage.getItem('snk3d_skin') || 0);
+
+function applySkin(idx) {
+  activeSkin = idx;
+  const sk = SKINS[idx];
+  matBody.color.setHex(sk.body.color);   matBody.shininess = sk.body.shininess;
+  matBody.specular.setHex(sk.body.specular); matBody.emissive.setHex(sk.body.emissive);
+  matHead.color.setHex(sk.head.color);   matHead.shininess = sk.head.shininess;
+  matHead.specular.setHex(sk.head.specular); matHead.emissive.setHex(sk.head.emissive);
+  matBody.needsUpdate = true; matHead.needsUpdate = true;
+  // Eat marker matches body colour
+  eatMarker.material.color.setHex(sk.body.color);
+  eatMarker.material.emissive.setHex(sk.body.emissive);
+  document.querySelectorAll('.skin-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+  localStorage.setItem('snk3d_skin', idx);
+}
+
+// ── THEME APPLICATION ─────────────────────────────────────────────────────────
+let currentTheme = 0, themeTransitioning = false;
+
+function applyThemeColors(idx) {
+  const t = THEMES[idx];
+  scene.fog.color.setHex(t.fog); scene.fog.density = t.fogD;
+  matTileA.color.setHex(t.tileA); matTileB.color.setHex(t.tileB);
+  matWall.color.setHex(t.wall);
+  matGrass.color.setHex(t.tileA); // fade plane matches lighter tile
+  ambientLight.color.setHex(t.ambient);
+  sun.color.setHex(t.sun); fill.color.setHex(t.fill);
+  document.body.style.backgroundImage = "url('" + t.bg + "')";
+  document.getElementById('level-val').textContent = t.name.toUpperCase();
+}
+
+function triggerThemeTransition(idx) {
+  if (themeTransitioning) return;
+  themeTransitioning = true;
+  const flash = document.getElementById('theme-flash');
+  flash.style.opacity = '1';
+  setTimeout(() => {
+    applyThemeColors(idx);
+    currentTheme = idx;
+    // Swap background music during the black-out
+    if (THEMES[idx].music) {
+      bgm.src = THEMES[idx].music;
+      bgm.currentTime = 0;
+      if (!muted) bgm.play().catch(() => {});
+    }
+    flash.style.opacity = '0';
+    setTimeout(() => { themeTransitioning = false; }, 350);
+  }, 330);
+}
 
 // ── WORLD HELPERS ────────────────────────────────────────────────────────────
 function cellW(c, r) {
@@ -528,6 +713,84 @@ eatMarker.visible = false;
 scene.add(eatMarker);
 let eatMarkerTimeout = null;
 
+// ── ANIMAL TARGETS ────────────────────────────────────────────────────────────
+// Add new animal builders here; register them in ANIMAL_BUILDERS below.
+function buildMouse() {
+  const g       = new THREE.Group();
+  const furMat  = new THREE.MeshPhongMaterial({ color:0xccaaaa, shininess:20 });
+  const pinkMat = new THREE.MeshLambertMaterial({ color:0xff9999 });
+  const eyeMat  = new THREE.MeshLambertMaterial({ color:0x221111 });
+
+  // Body (oblate ellipsoid)
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22,10,7), furMat);
+  body.scale.set(0.85,0.70,1.20); body.castShadow = true; g.add(body);
+
+  // Head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16,10,7), furMat);
+  head.position.set(0,0.03,0.27); head.castShadow = true; g.add(head);
+
+  // Ears (disc + pink inner disc)
+  [-1,1].forEach(s => {
+    const ear = new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.075,0.022,10), furMat);
+    ear.position.set(s*0.10,0.18,0.22); ear.rotation.z = s*0.12; g.add(ear);
+    const inner = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.023,10), pinkMat);
+    inner.position.set(s*0.10,0.193,0.22); inner.rotation.z = s*0.12; g.add(inner);
+  });
+
+  // Eyes
+  [-1,1].forEach(s => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.026,7,5), eyeMat);
+    eye.position.set(s*0.078,0.07,0.41); g.add(eye);
+  });
+
+  // Nose
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.020,6,4), pinkMat);
+  nose.position.set(0,0.01,0.43); g.add(nose);
+
+  // Tail (4 tapering segments curving backward)
+  const tailMat = new THREE.MeshLambertMaterial({ color:0xddbbbb });
+  for (let i=0;i<4;i++) {
+    const r2=0.020-i*0.003;
+    const seg=new THREE.Mesh(new THREE.CylinderGeometry(r2,r2,0.13,6),tailMat);
+    seg.position.set(0,-0.04+i*0.018,-0.22-i*0.11); seg.rotation.x=0.25+i*0.18; g.add(seg);
+  }
+
+  // Legs (4 short cylinders)
+  const legMat = new THREE.MeshLambertMaterial({ color:0xbb9999 });
+  [[-0.11,-0.12],[0.11,-0.12],[-0.09,0.09],[0.09,0.09]].forEach(([x,z]) => {
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.018,0.12,6),legMat);
+    leg.position.set(x,-0.14,z); leg.rotation.x=0.2; g.add(leg);
+  });
+
+  g.scale.setScalar(0.9);
+  return g;
+}
+// Register builders here to support future animal types
+const ANIMAL_BUILDERS = [ buildMouse ];
+const ANIMAL_PTS = 3;  // points for catching an animal
+
+const mouseG = buildMouse();
+mouseG.visible = false;
+scene.add(mouseG);
+
+let animalPos = null, animalBob = 0;
+
+function spawnAnimal() {
+  const occ = new Set(snake.map(s => s.c+','+s.r));
+  occ.add(food.c+','+food.r);
+  let c, r;
+  do { c=(Math.random()*G)|0; r=(Math.random()*G)|0; }
+  while (occ.has(c+','+r));
+  animalPos = {c,r};
+  const p = cellW(c,r);
+  mouseG.position.set(p.x, TH/2+0.22*0.70+0.03, p.z);
+  mouseG.rotation.y = Math.random()*Math.PI*2;
+  mouseG.scale.setScalar(0.9);
+  mouseG.visible = true;
+  animalBob = 0;
+}
+function hideAnimal() { animalPos=null; mouseG.visible=false; }
+
 // ── LEADERBOARD (Firebase Realtime Database) ─────────────────────────────────
 // Setup: create a free Firebase project at https://console.firebase.google.com
 //   1. Add a Realtime Database (start in test mode to allow public writes)
@@ -660,6 +923,7 @@ function dirToRotY(d) {
 
 function placeFood() {
   const occ = new Set(snake.map(s => s.c + ',' + s.r));
+  if (animalPos) occ.add(animalPos.c + ',' + animalPos.r);
   let c, r;
   do { c = (Math.random() * G) | 0; r = (Math.random() * G) | 0; }
   while (occ.has(c + ',' + r));
@@ -708,9 +972,15 @@ function initGame() {
   dir = {x:1,z:0}; nextDir = {x:1,z:0};
   score = 0; spd = INIT_SPD;
   document.getElementById('score-val').textContent = '0';
+  hideAnimal();
+  // Reset to Prairie theme
+  currentTheme = 0;
+  applyThemeColors(0);
   freeAllBody();
   renderSnake();
   placeFood();
+  // Restore saved skin
+  applySkin(+(localStorage.getItem('snk3d_skin') || 0));
 }
 
 function tick() {
@@ -720,15 +990,20 @@ function tick() {
 
   if (nh.c < 0 || nh.c >= G || nh.r < 0 || nh.r >= G) return die();
 
-  const ate = nh.c === food.c && nh.r === food.r;
-  // Open mouth 1 tick before eating (snake 2 cells away) AND while eating
-  const aboutToEat = nh.c + dir.x === food.c && nh.r + dir.z === food.r;
-  mouthTarget = (ate || aboutToEat) ? 1 : 0;
-  const check = ate ? snake : snake.slice(0, -1);
+  const ate       = nh.c === food.c && nh.r === food.r;
+  const ateAnimal = animalPos && nh.c === animalPos.c && nh.r === animalPos.r;
+
+  // Open mouth when approaching or eating apple OR animal
+  const aboutToEat = (nh.c + dir.x === food.c && nh.r + dir.z === food.r) ||
+    (animalPos && nh.c + dir.x === animalPos.c && nh.r + dir.z === animalPos.r);
+  mouthTarget = (ate || ateAnimal || aboutToEat) ? 1 : 0;
+
+  const grows = ate || ateAnimal;
+  const check = grows ? snake : snake.slice(0, -1);
   if (check.some(s => s.c === nh.c && s.r === nh.r)) return die();
 
   snake.unshift(nh);
-  if (!ate) snake.pop();
+  if (!grows) snake.pop();
   renderSnake();
 
   if (ate) {
@@ -736,13 +1011,32 @@ function tick() {
     score++;
     document.getElementById('score-val').textContent = score;
     spd = Math.max(MIN_SPD, INIT_SPD - score * 4);
-    // Show eat marker at apple position before placing new food
+    // Eat marker flash
     const ep = cellW(food.c, food.r);
     eatMarker.position.set(ep.x, SEG_Y, ep.z);
     eatMarker.visible = true;
     if (eatMarkerTimeout) clearTimeout(eatMarkerTimeout);
     eatMarkerTimeout = setTimeout(() => { eatMarker.visible = false; }, 420);
     placeFood();
+    // Spawn animal with increasing probability per level
+    if (!animalPos && Math.random() < 0.12 + currentTheme * 0.04) spawnAnimal();
+  }
+
+  if (ateAnimal) {
+    sndEat();
+    playTone(800, 1600, 0.14, 'sine', 0.16); // bonus chime
+    score += ANIMAL_PTS;
+    document.getElementById('score-val').textContent = score;
+    spd = Math.max(MIN_SPD, INIT_SPD - score * 4);
+    // Quick scale-pop on mouseG before hiding
+    mouseG.scale.setScalar(1.5);
+    setTimeout(() => { hideAnimal(); }, 80);
+  }
+
+  if (ate || ateAnimal) {
+    // Level-up every 10 apples (score counts both apple + animal points)
+    const newLvl = Math.min(Math.floor(score / 10), THEMES.length - 1);
+    if (newLvl !== currentTheme) triggerThemeTransition(newLvl);
   }
 }
 
@@ -890,6 +1184,13 @@ function animate(now) {
     foodG.position.y = baseY + Math.sin(bob) * 0.09;
     foodG.rotation.y += 0.02;
   }
+  // Animal idle animation — gentle hover + slow rotation
+  if (mouseG.visible) {
+    animalBob += 0.035;
+    const baseA = TH/2 + 0.22*0.70 + 0.03;
+    mouseG.position.y = baseA + Math.sin(animalBob) * 0.05;
+    mouseG.rotation.y += 0.015;
+  }
   // Jaw animation — smooth open/close
   jawPivot.rotation.x += (mouthTarget * 0.58 - jawPivot.rotation.x) * 0.22;
   renderer.render(scene, camera);
@@ -912,6 +1213,15 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   updateCam();
 });
+
+// ── SKIN BUTTONS ──────────────────────────────────────────────────────────────
+document.querySelectorAll('.skin-btn').forEach(btn => {
+  btn.addEventListener('click', () => applySkin(+btn.dataset.skin));
+});
+
+// Apply saved skin + theme on boot
+applySkin(+(localStorage.getItem('snk3d_skin') || 0));
+applyThemeColors(0);
 
 initGame();
 animate(0);
