@@ -34,13 +34,25 @@
     #hud {
       position: fixed; top: 0; left: 0; right: 0;
       padding: 16px 24px;
-      display: flex; justify-content: space-between; align-items: flex-start;
+      display: flex; justify-content: space-between; align-items: center;
       background: linear-gradient(to bottom, rgba(0,0,0,0.5), transparent);
       z-index: 10; pointer-events: none;
     }
-    .score-block { color: #fff; }
+    .score-block { color: #fff; flex: 1; pointer-events: none; }
     .score-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; opacity: 0.6; margin-bottom: 2px; }
     .score-value { font-size: 36px; font-weight: 800; line-height: 1; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+
+    /* Pause screen */
+    #pause-screen {
+      display: none; position: fixed; inset: 0; z-index: 18;
+      background: rgba(0,0,0,0.45); backdrop-filter: blur(3px);
+      align-items: center; justify-content: center; flex-direction: column;
+      color: #fff; pointer-events: none;
+    }
+    #pause-screen.active { display: flex; }
+    #pause-icon { font-size: clamp(48px,12vw,90px); line-height:1; }
+    #pause-label { font-size: 13px; letter-spacing: 4px; text-transform: uppercase;
+                   opacity: .6; margin-top: 12px; }
 
     /* Overlay */
     #overlay {
@@ -157,15 +169,15 @@
       pointer-events: none; z-index: 5;
     }
 
-    /* Mute button — top-right so it doesn't overlap the level label */
+    /* Mute button — intégré dans le HUD à droite */
     #mute-btn {
-      position: fixed; top: 14px; right: 24px;
       background: rgba(0,0,0,0.60); border: 2px solid rgba(255,255,255,0.45);
       border-radius: 22px; color: white; font-size: 20px; cursor: pointer;
       width: 46px; height: 46px; display: flex; align-items: center;
-      justify-content: center; z-index: 15; transition: background .15s;
+      justify-content: center; transition: background .15s;
       box-shadow: 0 2px 12px rgba(0,0,0,0.5);
-      -webkit-tap-highlight-color: transparent;
+      pointer-events: auto; /* override parent pointer-events:none */
+      -webkit-tap-highlight-color: transparent; margin-left: auto;
     }
     #mute-btn:hover { background: rgba(0,0,0,0.80); border-color: rgba(255,255,255,0.7); }
 
@@ -218,7 +230,6 @@
 <body>
 
 <audio id="bgm" src="audio/music.mp3" loop preload="auto"></audio>
-<button id="mute-btn" title="Mute / Unmute">🔊</button>
 
 <div id="hud">
   <div class="score-block">
@@ -229,6 +240,14 @@
     <div class="score-label">Niveau</div>
     <div id="level-val">Prairie</div>
   </div>
+  <div class="score-block" style="display:flex;justify-content:flex-end;align-items:center">
+    <button id="mute-btn" title="Mute / Unmute">🔊</button>
+  </div>
+</div>
+
+<div id="pause-screen">
+  <div id="pause-icon">⏸</div>
+  <div id="pause-label">Espace pour reprendre</div>
 </div>
 
 <div id="overlay">
@@ -1232,7 +1251,13 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('any-key').style.display === 'block') showPlayBtn();
     return;
   }
-  if (e.key === 'Enter' || e.key === ' ') { if (state === 'dead') startGame(); return; }
+  if (e.key === ' ') {
+    if (state === 'playing') { state = 'paused'; document.getElementById('pause-screen').classList.add('active'); bgm.pause(); return; }
+    if (state === 'paused')  { state = 'playing'; lastTick = performance.now(); document.getElementById('pause-screen').classList.remove('active'); if (!muted) bgm.play().catch(()=>{}); return; }
+    if (state === 'dead' || state === 'start') { startGame(); return; }
+    return;
+  }
+  if (e.key === 'Enter') { if (state === 'dead' || state === 'start') { startGame(); return; } }
   const d = KEY_MAP[e.key];
   if (d) { e.preventDefault(); applyDir(d); }
 });
