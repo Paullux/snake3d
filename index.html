@@ -1204,8 +1204,8 @@ async function die() {
     renderLeaderboard(scores, finalScore, null);
     document.getElementById('name-wrap').style.display = 'block';
     document.getElementById('name-input').value = '';
-    document.getElementById('name-input').focus();
     document.getElementById('name-ok').disabled = false;
+    setTimeout(() => document.getElementById('name-input').focus(), 120);
     document.getElementById('name-ok').dataset.score = finalScore;
     // showAnyKey() sera appelé après la soumission du nom
   } else {
@@ -1288,15 +1288,15 @@ document.getElementById('name-ok').addEventListener('click', submitName);
 document.getElementById('name-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); submitName(); }
 });
-// Bug fix: re-focus name input if it loses focus while still empty
-document.getElementById('name-input').addEventListener('blur', () => {
-  setTimeout(() => {
-    const wrap  = document.getElementById('name-wrap');
-    const input = document.getElementById('name-input');
-    if (wrap.style.display !== 'none' && input.value.trim() === '' && !input.disabled) {
-      input.focus();
-    }
-  }, 80);
+// Re-focus name input if user clicks elsewhere in the overlay while it's empty
+document.getElementById('overlay').addEventListener('pointerdown', e => {
+  const input = document.getElementById('name-input');
+  const wrap  = document.getElementById('name-wrap');
+  if (wrap.style.display !== 'none' && !input.disabled
+      && e.target !== input && e.target !== document.getElementById('name-ok')) {
+    e.preventDefault();
+    input.focus();
+  }
 });
 
 let tStart = null;
