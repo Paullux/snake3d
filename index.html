@@ -157,9 +157,9 @@
       pointer-events: none; z-index: 5;
     }
 
-    /* Mute button */
+    /* Mute button — top-right so it doesn't overlap the level label */
     #mute-btn {
-      position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+      position: fixed; top: 14px; right: 24px;
       background: rgba(0,0,0,0.60); border: 2px solid rgba(255,255,255,0.45);
       border-radius: 22px; color: white; font-size: 20px; cursor: pointer;
       width: 46px; height: 46px; display: flex; align-items: center;
@@ -625,15 +625,35 @@ function buildHead() {
   // Eyes on upper part
   const ewGeo = new THREE.SphereGeometry(0.092, 10, 8);
   const ebGeo = new THREE.SphereGeometry(0.057, 8, 6);
+  const normalEyes = [];
   [-1, 1].forEach(side => {
     const ew = new THREE.Mesh(ewGeo, matEyeW);
     const eb = new THREE.Mesh(ebGeo, matEyeB);
     ew.position.set(side * 0.20, 0.14, 0.29);
     eb.position.set(side * 0.19, 0.14, 0.345);
     g.add(ew, eb);
+    normalEyes.push(ew, eb);
   });
 
-  g.userData.jawPivot = jawPivot;
+  // X eyes — shown only during death animation
+  const xEyes = [];
+  const xMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+  [-1, 1].forEach(side => {
+    const xg = new THREE.Group();
+    [Math.PI / 4, -Math.PI / 4].forEach(a => {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.028, 0.028), xMat);
+      arm.rotation.z = a;
+      xg.add(arm);
+    });
+    xg.position.set(side * 0.20, 0.14, 0.345);
+    xg.visible = false;
+    g.add(xg);
+    xEyes.push(xg);
+  });
+
+  g.userData.jawPivot   = jawPivot;
+  g.userData.normalEyes = normalEyes;
+  g.userData.xEyes      = xEyes;
   return g;
 }
 const headGroup = buildHead();
@@ -1016,9 +1036,12 @@ function initGame() {
   score = 0; spd = INIT_SPD;
   document.getElementById('score-val').textContent = '0';
   hideAnimal();
-  // Reset to Prairie theme
+  // Reset to Prairie theme + music
   currentTheme = 0;
   applyThemeColors(0);
+  bgm.src = THEMES[0].music;   // bug fix: always restart Prairie music, never the last theme
+  bgm.currentTime = 0;
+  resetDeathAnim();             // restore eyes + let applySkin() below fix colours
   freeAllBody();
   renderSnake();
   placeFood();
@@ -1026,12 +1049,57 @@ function initGame() {
   applySkin(+(localStorage.getItem('snk3d_skin') || 0));
 }
 
+// ── DEATH ANIMATION ──────────────────────────────────────────────────────────
+const _camOrigin = new THREE.Vector3(CENTER, 30, CENTER + 30);
+
+function shakeCamera() {
+  let i = 0;
+  const iv = setInterval(() => {
+    camera.position.set(
+      _camOrigin.x + (Math.random() - 0.5) * 0.45,
+      _camOrigin.y + (Math.random() - 0.5) * 0.20,
+      _camOrigin.z + (Math.random() - 0.5) * 0.45
+    );
+    if (++i >= 8) { clearInterval(iv); camera.position.copy(_camOrigin); camera.lookAt(CENTER, 0, CENTER + 3); }
+  }, 45);
+}
+
+function startDeathAnim() {
+  // Swap eyes to X
+  headGroup.userData.normalEyes.forEach(m => { m.visible = false; });
+  headGroup.userData.xEyes.forEach(m => { m.visible = true; });
+  // Flash red then bone-white
+  matBody.color.setHex(0xff2222); matHead.color.setHex(0xff5555);
+  matBody.needsUpdate = true; matHead.needsUpdate = true;
+  setTimeout(() => {
+    matBody.color.setHex(0xd4c9a0); matHead.color.setHex(0xe0d4b0);
+    matBody.needsUpdate = true; matHead.needsUpdate = true;
+  }, 220);
+  shakeCamera();
+}
+
+function resetDeathAnim() {
+  headGroup.userData.normalEyes.forEach(m => { m.visible = true; });
+  headGroup.userData.xEyes.forEach(m => { m.visible = false; });
+  // Skin colours restored by applySkin() called just after
+}
+
+function preDie() {
+  if (state !== 'playing') return;
+  state = 'dying';           // freeze game loop
+  sndDie();
+  bgm.pause();
+  mouthTarget = 0;           // close mouth
+  startDeathAnim();
+  setTimeout(() => die(), 520);
+}
+
 function tick() {
   dir = {...nextDir};
   const h = snake[0];
   const nh = {c: h.c + dir.x, r: h.r + dir.z};
 
-  if (nh.c < 0 || nh.c >= G || nh.r < 0 || nh.r >= G) return die();
+  if (nh.c < 0 || nh.c >= G || nh.r < 0 || nh.r >= G) return preDie();
 
   const ate       = nh.c === food.c && nh.r === food.r;
   const ateAnimal = animalPos && nh.c === animalPos.c && nh.r === animalPos.r;
@@ -1043,7 +1111,7 @@ function tick() {
 
   const grows = ate || ateAnimal;
   const check = grows ? snake : snake.slice(0, -1);
-  if (check.some(s => s.c === nh.c && s.r === nh.r)) return die();
+  if (check.some(s => s.c === nh.c && s.r === nh.r)) return preDie();
 
   snake.unshift(nh);
   if (!grows) snake.pop();
@@ -1094,8 +1162,7 @@ function showPlayBtn() {
 }
 
 async function die() {
-  sndDie();
-  bgm.pause();
+  bgm.pause();   // safety — already paused by preDie() in normal flow
   state = 'scores';
   const newBest = score > best;
   if (newBest) { best = score; localStorage.setItem('snk3d_best', best); }
@@ -1199,6 +1266,16 @@ async function submitName() {
 document.getElementById('name-ok').addEventListener('click', submitName);
 document.getElementById('name-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); submitName(); }
+});
+// Bug fix: re-focus name input if it loses focus while still empty
+document.getElementById('name-input').addEventListener('blur', () => {
+  setTimeout(() => {
+    const wrap  = document.getElementById('name-wrap');
+    const input = document.getElementById('name-input');
+    if (wrap.style.display !== 'none' && input.value.trim() === '' && !input.disabled) {
+      input.focus();
+    }
+  }, 80);
 });
 
 let tStart = null;
