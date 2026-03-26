@@ -971,7 +971,6 @@ let food = {c:0,r:0}, score = 0, spd = INIT_SPD;
 let state = 'start';
 let lastTick = 0, bob = 0, mouthTarget = 0;
 let best = +(localStorage.getItem('snk3d_best') || 0);
-document.getElementById('best-val').textContent = best;
 
 function dirToRotY(d) {
   if (d.x ===  1) return  Math.PI / 2;
